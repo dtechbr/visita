@@ -39,6 +39,37 @@ jobs:
           if (-not $exe) { throw "Executavel nao foi gerado" }
           Write-Host "Gerado: $($exe.FullName) - $([math]::Round($exe.Length / 1MB, 2)) MB"
 
+      - name: Parser self-test
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path "publish/${{ matrix.rid }}/Painel_Visitas_eSUS.exe"
+          $p = Start-Process -FilePath $exe -ArgumentList "--selftest" -PassThru -Wait
+          if ($p.ExitCode -ne 0) {
+            if (Test-Path "publish/${{ matrix.rid }}/selftest_erro.txt") { Get-Content "publish/${{ matrix.rid }}/selftest_erro.txt" }
+            throw "Autoteste do parser falhou com codigo $($p.ExitCode)"
+          }
+          if (-not (Test-Path "publish/${{ matrix.rid }}/selftest_ok.txt")) { throw "Arquivo de confirmacao do autoteste nao foi criado" }
+
+      - name: Smoke test launch
+        shell: pwsh
+        run: |
+          $exe = Resolve-Path "publish/${{ matrix.rid }}/Painel_Visitas_eSUS.exe"
+          $p = Start-Process -FilePath $exe -PassThru
+          Start-Sleep -Seconds 5
+          if ($p.HasExited) {
+            if (Test-Path "publish/${{ matrix.rid }}/erro_inicializacao.txt") { Get-Content "publish/${{ matrix.rid }}/erro_inicializacao.txt" }
+            throw "Aplicativo encerrou sozinho durante o teste de inicializacao. Codigo: $($p.ExitCode)"
+          }
+          Stop-Process -Id $p.Id -Force
+
+      - name: Clean test files
+        shell: pwsh
+        run: |
+          Remove-Item "publish/${{ matrix.rid }}/selftest_ok.txt" -ErrorAction SilentlyContinue
+          Remove-Item "publish/${{ matrix.rid }}/selftest_erro.txt" -ErrorAction SilentlyContinue
+          Remove-Item "publish/${{ matrix.rid }}/visitas_base.json" -ErrorAction SilentlyContinue
+          Remove-Item "publish/${{ matrix.rid }}/erro_inicializacao.txt" -ErrorAction SilentlyContinue
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
