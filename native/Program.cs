@@ -44,14 +44,24 @@ internal static class Program
                 },
                 new
                 {
-                    // Simula a ordem interna encontrada nos PDFs Jasper: rótulo e número sem espaço.
                     Text = "Relatório do E-SUS Filtros: Data Inicial: 01/04/2026 Data Final: 30/04/2026 Unidade de Saúde: 1701-1 - USF VILA DUTRA Equipe/Área: 0001487728 - DUTRA II Micro Área: 01 - MICRO AREA 01 USF VILA DUTRA VISITASREALIZADAS138AUSENTES290 TotalGeral..:428",
                     Month = "2026-04", Team = "DUTRA II", Micro = "01", Real = 138, Aus = 290, Total = 428
                 },
                 new
                 {
-                    // Relatórios podem conter VISITAS RECUSADAS entre realizadas e ausentes.
                     Text = "Relatório do E-SUS Filtros: Data Inicial: 01/01/2026 Data Final: 31/01/2026 Unidade de Saúde: 1701-1 - USF VILA DUTRA Equipe/Área: 0001487728 - DUTRA II Micro Área: 03 - MICRO AREA 03 USF VILA DUTRA VISITASREALIZADAS195VISITASRECUSADAS6AUSENTES525 TotalGeral..:726",
+                    Month = "2026-01", Team = "DUTRA II", Micro = "03", Real = 195, Aus = 525, Total = 726
+                },
+                new
+                {
+                    // Reproduz o defeito observado no PDF real: ausentes + total aparecem unidos.
+                    Text = "Relatório do E-SUS Filtros: Data Inicial: 01/01/2026 Data Final: 31/01/2026 Unidade de Saúde: 1701-1 - USF VILA DUTRA Equipe/Área: 0001487728 - DUTRA II Micro Área: 01 - MICRO AREA 01 USF VILA DUTRA VISITASREALIZADAS19AUSENTES1938 TotalGeral..:38",
+                    Month = "2026-01", Team = "DUTRA II", Micro = "01", Real = 19, Aus = 19, Total = 38
+                },
+                new
+                {
+                    // Mesmo defeito, mas com recusadas presentes.
+                    Text = "Relatório do E-SUS Filtros: Data Inicial: 01/01/2026 Data Final: 31/01/2026 Unidade de Saúde: 1701-1 - USF VILA DUTRA Equipe/Área: 0001487728 - DUTRA II Micro Área: 03 - MICRO AREA 03 USF VILA DUTRA VISITASREALIZADAS195VISITASRECUSADAS6AUSENTES525726 TotalGeral..:726",
                     Month = "2026-01", Team = "DUTRA II", Micro = "03", Real = 195, Aus = 525, Total = 726
                 }
             };
