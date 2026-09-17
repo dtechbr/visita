@@ -13,7 +13,7 @@ public static class PdfImporter
         using var pdf = PdfDocument.Open(path);
         foreach (var page in pdf.GetPages())
         {
-            // O Jasper/e-SUS pode omitir espaços entre alguns textos e números
+            // O Jasper/e-SUS pode devolver alguns campos e números concatenados
             // na ordem interna do PDF. ParseText trata essas variações.
             sb.Append(' ').Append(page.Text ?? string.Empty).Append(' ');
         }
@@ -37,14 +37,34 @@ public static class PdfImporter
         var unit = MatchOptional(text,
             @"Unidade\s+de\s+Sa[uú]de\s*:\s*(.+?)(?=\s*Equipe\s*/\s*[ÁA]rea\s*:|$)");
 
-        var realizadas = MatchMetric(text, "VISITAS REALIZADAS", "VISITAS REALIZADAS");
-        var ausentes = MatchMetric(text, "AUSENTES", "AUSENTES");
+        // O Total Geral costuma ser o campo mais estável do relatório e serve
+        // também como validação dos demais números extraídos.
         var total = MatchTotal(text);
+        var realizadas = MatchMetric(text, "VISITAS REALIZADAS", "VISITAS REALIZADAS");
+        var recusadas = MatchMetricOptional(text, "VISITAS RECUSADAS");
+        if (recusadas < 0) recusadas = 0;
+
+        var ausentesExtraido = MatchMetricOptional(text, "AUSENTES");
+        var ausentes = ausentesExtraido;
+
+        // Em alguns PDFs Jasper a ordem interna pode produzir algo como:
+        // AUSENTES 19 38 Total Geral: 38  -> leitura compactada: AUSENTES1938.
+        // Quando isso ocorre, o valor extraído de ausentes fica maior que o
+        // próprio Total Geral. Nessa situação reconstruímos o valor a partir
+        // dos campos confiáveis do relatório.
+        if (total >= 0)
+        {
+            var ausentesCalculado = total - realizadas - recusadas;
+            if (ausentesCalculado >= 0 && (ausentesExtraido < 0 || ausentesExtraido > total))
+                ausentes = ausentesCalculado;
+        }
+
+        if (ausentes < 0)
+            throw new InvalidDataException("Campo 'AUSENTES' não encontrado no PDF.");
 
         // Só é usado se o relatório realmente não trouxer nenhum Total Geral.
-        // Nos relatórios com recusadas, o Total Geral do próprio PDF é preservado.
         if (total < 0)
-            total = realizadas + ausentes;
+            total = realizadas + recusadas + ausentes;
 
         return new VisitRecord
         {
@@ -66,6 +86,13 @@ public static class PdfImporter
 
     private static int MatchMetric(string text, string label, string field)
     {
+        var value = MatchMetricOptional(text, label);
+        if (value >= 0) return value;
+        throw new InvalidDataException($"Campo '{field}' não encontrado no PDF.");
+    }
+
+    private static int MatchMetricOptional(string text, string label)
+    {
         // Forma normal: VISITAS REALIZADAS 138
         var labelPattern = string.Join(@"\s*", label.Split(' ', StringSplitOptions.RemoveEmptyEntries)
                                                        .Select(Regex.Escape));
@@ -84,10 +111,7 @@ public static class PdfImporter
             Regex.Escape(compactLabel) + @"[:.\-]*(\d+)",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
 
-        if (m.Success && int.TryParse(m.Groups[1].Value, out value))
-            return value;
-
-        throw new InvalidDataException($"Campo '{field}' não encontrado no PDF.");
+        return m.Success && int.TryParse(m.Groups[1].Value, out value) ? value : -1;
     }
 
     private static int MatchTotal(string text)
