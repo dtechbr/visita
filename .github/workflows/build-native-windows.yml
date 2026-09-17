@@ -1,0 +1,48 @@
+name: Build Painel Visitas Windows
+
+on:
+  push:
+    branches: [ native-windows-v2 ]
+    paths:
+      - 'native/**'
+      - '.github/workflows/build-native-windows.yml'
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-latest
+    strategy:
+      matrix:
+        rid: [win-x64, win-x86]
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 8
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Restore
+        run: dotnet restore native/VisitasESUS.csproj -r ${{ matrix.rid }}
+
+      - name: Build
+        run: dotnet build native/VisitasESUS.csproj -c Release -r ${{ matrix.rid }} --no-restore
+
+      - name: Publish single EXE
+        run: dotnet publish native/VisitasESUS.csproj -c Release -r ${{ matrix.rid }} --self-contained true --no-restore -p:PublishSingleFile=true -p:PublishTrimmed=false -p:EnableCompressionInSingleFile=true -p:DebugType=None -p:DebugSymbols=false -o publish/${{ matrix.rid }}
+
+      - name: Verify EXE
+        shell: pwsh
+        run: |
+          $exe = Get-ChildItem "publish/${{ matrix.rid }}" -Filter *.exe | Select-Object -First 1
+          if (-not $exe) { throw "Executavel nao foi gerado" }
+          Write-Host "Gerado: $($exe.FullName) - $([math]::Round($exe.Length / 1MB, 2)) MB"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Painel_Visitas_eSUS_${{ matrix.rid }}
+          path: publish/${{ matrix.rid }}/Painel_Visitas_eSUS.exe
+          if-no-files-found: error
+          retention-days: 30
