@@ -9,6 +9,8 @@ public sealed class DataStore
     private readonly JsonSerializerOptions _json = new() { WriteIndented = true };
     public LocalDatabase Db { get; private set; } = new();
     public string DatabasePath => _dbPath;
+    public int InvalidRecordsRemoved { get; private set; }
+    public string? RepairBackupPath { get; private set; }
 
     public DataStore()
     {
@@ -18,12 +20,22 @@ public sealed class DataStore
 
     public void Load()
     {
-        if (!File.Exists(_dbPath)) { Db = new LocalDatabase(); Save(); return; }
+        InvalidRecordsRemoved = 0;
+        RepairBackupPath = null;
+
+        if (!File.Exists(_dbPath))
+        {
+            Db = new LocalDatabase();
+            Save();
+            return;
+        }
+
         try
         {
             var text = File.ReadAllText(_dbPath, Encoding.UTF8);
             Db = JsonSerializer.Deserialize<LocalDatabase>(text, _json) ?? new LocalDatabase();
             ApplyProfessionalLinks();
+            RemoveImpossibleRecords();
         }
         catch
         {
@@ -32,6 +44,34 @@ public sealed class DataStore
             Db = new LocalDatabase();
             Save();
         }
+    }
+
+    private void RemoveImpossibleRecords()
+    {
+        var invalid = Db.Records
+            .Where(r => r.Total < 0 || r.Realizadas < 0 || r.Ausentes < 0 ||
+                        r.Realizadas > r.Total || r.Ausentes > r.Total ||
+                        (long)r.Realizadas + r.Ausentes > r.Total)
+            .ToList();
+
+        if (invalid.Count == 0) return;
+
+        try
+        {
+            var backupName = $"visitas_base_antes_correcao_{DateTime.Now:yyyyMMdd_HHmmss}.json";
+            RepairBackupPath = Path.Combine(AppContext.BaseDirectory, backupName);
+            File.Copy(_dbPath, RepairBackupPath, true);
+        }
+        catch
+        {
+            RepairBackupPath = null;
+        }
+
+        var invalidKeys = invalid.Select(r => r.IdentityKey)
+                                 .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        Db.Records.RemoveAll(r => invalidKeys.Contains(r.IdentityKey));
+        InvalidRecordsRemoved = invalid.Count;
+        Save();
     }
 
     public void Save()
