@@ -16,7 +16,26 @@ internal static class Program
         Application.SetCompatibleTextRenderingDefault(false);
         try
         {
-            Application.Run(new MainForm());
+            var form = new MainForm
+            {
+                Text = "Painel de Visitas e-SUS v4"
+            };
+
+            if (DataStore.LastInvalidRecordsRemoved > 0)
+            {
+                var backupInfo = string.IsNullOrWhiteSpace(DataStore.LastRepairBackupPath)
+                    ? ""
+                    : $"\n\nFoi criado um backup automático em:\n{DataStore.LastRepairBackupPath}";
+
+                MessageBox.Show(
+                    $"Foram encontrados {DataStore.LastInvalidRecordsRemoved} registro(s) impossível(is) gravado(s) por uma versão anterior e eles foram retirados do painel.\n\n" +
+                    "Reimporte os PDFs correspondentes para reconstruir esses registros com os valores corretos." + backupInfo,
+                    "Correção automática da base — v4",
+                    MessageBoxButtons.OK,
+                    MessageBoxIcon.Information);
+            }
+
+            Application.Run(form);
         }
         catch (Exception ex)
         {
@@ -54,13 +73,11 @@ internal static class Program
                 },
                 new
                 {
-                    // Reproduz o defeito observado no PDF real: ausentes + total aparecem unidos.
                     Text = "Relatório do E-SUS Filtros: Data Inicial: 01/01/2026 Data Final: 31/01/2026 Unidade de Saúde: 1701-1 - USF VILA DUTRA Equipe/Área: 0001487728 - DUTRA II Micro Área: 01 - MICRO AREA 01 USF VILA DUTRA VISITASREALIZADAS19AUSENTES1938 TotalGeral..:38",
                     Month = "2026-01", Team = "DUTRA II", Micro = "01", Real = 19, Aus = 19, Total = 38
                 },
                 new
                 {
-                    // Mesmo defeito, mas com recusadas presentes.
                     Text = "Relatório do E-SUS Filtros: Data Inicial: 01/01/2026 Data Final: 31/01/2026 Unidade de Saúde: 1701-1 - USF VILA DUTRA Equipe/Área: 0001487728 - DUTRA II Micro Área: 03 - MICRO AREA 03 USF VILA DUTRA VISITASREALIZADAS195VISITASRECUSADAS6AUSENTES525726 TotalGeral..:726",
                     Month = "2026-01", Team = "DUTRA II", Micro = "03", Real = 195, Aus = 525, Total = 726
                 }
