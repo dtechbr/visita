@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWindowsForms>true</UseWindowsForms>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>Painel_Visitas_eSUS</AssemblyName>
+    <RootNamespace>VisitasESUS</RootNamespace>
+    <ApplicationManifest>app.manifest</ApplicationManifest>
+    <Platforms>AnyCPU;x86;x64</Platforms>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="UglyToad.PdfPig" Version="0.1.17-alpha-202609071845-0d1d6" />
+  </ItemGroup>
+</Project>
