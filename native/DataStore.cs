@@ -12,6 +12,9 @@ public sealed class DataStore
     public int InvalidRecordsRemoved { get; private set; }
     public string? RepairBackupPath { get; private set; }
 
+    public static int LastInvalidRecordsRemoved { get; private set; }
+    public static string? LastRepairBackupPath { get; private set; }
+
     public DataStore()
     {
         _dbPath = Path.Combine(AppContext.BaseDirectory, "visitas_base.json");
@@ -22,6 +25,8 @@ public sealed class DataStore
     {
         InvalidRecordsRemoved = 0;
         RepairBackupPath = null;
+        LastInvalidRecordsRemoved = 0;
+        LastRepairBackupPath = null;
 
         if (!File.Exists(_dbPath))
         {
@@ -71,6 +76,8 @@ public sealed class DataStore
                                  .ToHashSet(StringComparer.OrdinalIgnoreCase);
         Db.Records.RemoveAll(r => invalidKeys.Contains(r.IdentityKey));
         InvalidRecordsRemoved = invalid.Count;
+        LastInvalidRecordsRemoved = InvalidRecordsRemoved;
+        LastRepairBackupPath = RepairBackupPath;
         Save();
     }
 
