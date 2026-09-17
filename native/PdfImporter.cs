@@ -2,8 +2,6 @@ using System.Globalization;
 using System.Text;
 using System.Text.RegularExpressions;
 using UglyToad.PdfPig;
-using UglyToad.PdfPig.Content;
-using UglyToad.PdfPig.DocumentLayoutAnalysis.WordExtractor;
 
 namespace VisitasESUS;
 
@@ -13,16 +11,12 @@ public static class PdfImporter
     {
         var sb = new StringBuilder();
         using var pdf = PdfDocument.Open(path);
-
         foreach (var page in pdf.GetPages())
         {
-            var readable = ExtractReadablePageText(page);
-            if (!string.IsNullOrWhiteSpace(readable))
-                sb.AppendLine(readable);
-            else
-                sb.AppendLine(page.Text ?? string.Empty);
+            // O Jasper/e-SUS pode omitir espaços entre alguns textos e números
+            // na ordem interna do PDF. ParseText trata essas variações.
+            sb.Append(' ').Append(page.Text ?? string.Empty).Append(' ');
         }
-
         return ParseText(sb.ToString(), Path.GetFileName(path));
     }
 
@@ -43,13 +37,12 @@ public static class PdfImporter
         var unit = MatchOptional(text,
             @"Unidade\s+de\s+Sa[uú]de\s*:\s*(.+?)(?=\s*Equipe\s*/\s*[ÁA]rea\s*:|$)");
 
-        // Alguns PDFs do Jasper/e-SUS não gravam espaço entre o rótulo e o valor
-        // na ordem interna do PDF. Por isso aceitamos qualquer quantidade de espaço
-        // e ainda temos um fallback que procura no texto totalmente compactado.
         var realizadas = MatchMetric(text, "VISITAS REALIZADAS", "VISITAS REALIZADAS");
         var ausentes = MatchMetric(text, "AUSENTES", "AUSENTES");
-
         var total = MatchTotal(text);
+
+        // Só é usado se o relatório realmente não trouxer nenhum Total Geral.
+        // Nos relatórios com recusadas, o Total Geral do próprio PDF é preservado.
         if (total < 0)
             total = realizadas + ausentes;
 
@@ -71,59 +64,9 @@ public static class PdfImporter
         };
     }
 
-    private static string ExtractReadablePageText(Page page)
-    {
-        try
-        {
-            var words = NearestNeighbourWordExtractor.Instance
-                .GetWords(page.Letters)
-                .Where(w => !string.IsNullOrWhiteSpace(w.Text))
-                .ToList();
-
-            if (words.Count == 0)
-                return page.Text ?? string.Empty;
-
-            const double lineTolerance = 3.0;
-            var lines = new List<List<Word>>();
-
-            foreach (var word in words.OrderByDescending(w => w.BoundingBox.Bottom)
-                                      .ThenBy(w => w.BoundingBox.Left))
-            {
-                List<Word>? target = null;
-                double bestDistance = double.MaxValue;
-
-                foreach (var line in lines)
-                {
-                    var distance = Math.Abs(word.BoundingBox.Bottom - line[0].BoundingBox.Bottom);
-                    if (distance <= lineTolerance && distance < bestDistance)
-                    {
-                        target = line;
-                        bestDistance = distance;
-                    }
-                }
-
-                if (target is null)
-                    lines.Add(new List<Word> { word });
-                else
-                    target.Add(word);
-            }
-
-            var sb = new StringBuilder();
-            foreach (var line in lines.OrderByDescending(l => l.Average(w => w.BoundingBox.Bottom)))
-            {
-                sb.AppendLine(string.Join(" ", line.OrderBy(w => w.BoundingBox.Left)
-                                                   .Select(w => w.Text.Trim())));
-            }
-            return sb.ToString();
-        }
-        catch
-        {
-            return page.Text ?? string.Empty;
-        }
-    }
-
     private static int MatchMetric(string text, string label, string field)
     {
+        // Forma normal: VISITAS REALIZADAS 138
         var labelPattern = string.Join(@"\s*", label.Split(' ', StringSplitOptions.RemoveEmptyEntries)
                                                        .Select(Regex.Escape));
         var m = Regex.Match(text,
@@ -133,9 +76,10 @@ public static class PdfImporter
         if (m.Success && int.TryParse(m.Groups[1].Value, out var value))
             return value;
 
-        // Fallback para PDFs que devolvem algo como VISITASREALIZADAS138AUSENTES290.
-        var compact = Regex.Replace(text, @"\s+", string.Empty);
-        var compactLabel = Regex.Replace(label, @"\s+", string.Empty);
+        // Forma encontrada na estrutura interna dos PDFs Jasper/e-SUS:
+        // VISITASREALIZADAS138AUSENTES290
+        var compact = Compact(text);
+        var compactLabel = Compact(label);
         m = Regex.Match(compact,
             Regex.Escape(compactLabel) + @"[:.\-]*(\d+)",
             RegexOptions.IgnoreCase | RegexOptions.CultureInvariant);
@@ -160,7 +104,7 @@ public static class PdfImporter
             if (value >= 0) return value;
         }
 
-        var compact = Regex.Replace(text, @"\s+", string.Empty);
+        var compact = Compact(text);
         var compactPatterns = new[]
         {
             @"TotalGeral\.{0,3}:?(\d+)",
@@ -174,6 +118,9 @@ public static class PdfImporter
         }
         return -1;
     }
+
+    private static string Compact(string text) =>
+        Regex.Replace(text ?? string.Empty, @"\s+", string.Empty);
 
     private static string Normalize(string text)
     {
