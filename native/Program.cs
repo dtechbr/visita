@@ -16,10 +16,7 @@ internal static class Program
         Application.SetCompatibleTextRenderingDefault(false);
         try
         {
-            var form = new MainForm
-            {
-                Text = "Painel de Visitas e-SUS v4"
-            };
+            var form = new MainFormV5();
 
             if (DataStore.LastInvalidRecordsRemoved > 0)
             {
@@ -30,7 +27,7 @@ internal static class Program
                 MessageBox.Show(
                     $"Foram encontrados {DataStore.LastInvalidRecordsRemoved} registro(s) impossível(is) gravado(s) por uma versão anterior e eles foram retirados do painel.\n\n" +
                     "Reimporte os PDFs correspondentes para reconstruir esses registros com os valores corretos." + backupInfo,
-                    "Correção automática da base — v4",
+                    "Correção automática da base — v5",
                     MessageBoxButtons.OK,
                     MessageBoxIcon.Information);
             }
@@ -44,7 +41,7 @@ internal static class Program
                 var log = Path.Combine(AppContext.BaseDirectory, "erro_inicializacao.txt");
                 File.WriteAllText(log, ex.ToString());
                 MessageBox.Show("O aplicativo encontrou um erro ao iniciar. Foi criado o arquivo 'erro_inicializacao.txt' na pasta do programa.\n\n" + ex.Message,
-                    "Painel de Visitas e-SUS", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                    "Painel de Visitas e-SUS v5", MessageBoxButtons.OK, MessageBoxIcon.Error);
             }
             catch { }
         }
@@ -75,11 +72,6 @@ internal static class Program
                 {
                     Text = "Relatório do E-SUS Filtros: Data Inicial: 01/01/2026 Data Final: 31/01/2026 Unidade de Saúde: 1701-1 - USF VILA DUTRA Equipe/Área: 0001487728 - DUTRA II Micro Área: 01 - MICRO AREA 01 USF VILA DUTRA VISITASREALIZADAS19AUSENTES1938 TotalGeral..:38",
                     Month = "2026-01", Team = "DUTRA II", Micro = "01", Real = 19, Aus = 19, Total = 38
-                },
-                new
-                {
-                    Text = "Relatório do E-SUS Filtros: Data Inicial: 01/01/2026 Data Final: 31/01/2026 Unidade de Saúde: 1701-1 - USF VILA DUTRA Equipe/Área: 0001487728 - DUTRA II Micro Área: 03 - MICRO AREA 03 USF VILA DUTRA VISITASREALIZADAS195VISITASRECUSADAS6AUSENTES525726 TotalGeral..:726",
-                    Month = "2026-01", Team = "DUTRA II", Micro = "03", Real = 195, Aus = 525, Total = 726
                 }
             };
 
