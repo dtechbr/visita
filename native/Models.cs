@@ -34,8 +34,23 @@ public sealed class VisitRecord
     public string IdentityKey => $"{MonthKey}|{TeamCode}|{MicroCode}";
 }
 
+public sealed class TerritoryConfig
+{
+    public string TeamCode { get; set; } = "";
+    public string TeamName { get; set; } = "";
+    public string MicroCode { get; set; } = "";
+    public string ProfessionalName { get; set; } = "";
+    public int RegisteredPeople { get; set; }
+    public DateTime UpdatedAt { get; set; } = DateTime.Now;
+
+    public string Key => DataStore.LinkKey(TeamCode, MicroCode);
+    public string TeamLabel => string.IsNullOrWhiteSpace(TeamName) ? TeamCode : TeamName;
+}
+
 public sealed class LocalDatabase
 {
     public List<VisitRecord> Records { get; set; } = new();
+    // Mantido por compatibilidade com versões anteriores.
     public Dictionary<string, string> ProfessionalLinks { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, TerritoryConfig> TerritoryConfigs { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
