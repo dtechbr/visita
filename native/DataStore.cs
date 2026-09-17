@@ -39,7 +39,11 @@ public sealed class DataStore
         {
             var text = File.ReadAllText(_dbPath, Encoding.UTF8);
             Db = JsonSerializer.Deserialize<LocalDatabase>(text, _json) ?? new LocalDatabase();
-            ApplyProfessionalLinks();
+            Db.Records ??= new List<VisitRecord>();
+            Db.ProfessionalLinks ??= new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+            Db.TerritoryConfigs ??= new Dictionary<string, TerritoryConfig>(StringComparer.OrdinalIgnoreCase);
+            MigrateLegacyProfessionalLinks();
+            ApplyTerritoryConfiguration();
             RemoveImpossibleRecords();
         }
         catch
@@ -48,6 +52,28 @@ public sealed class DataStore
             try { File.Copy(_dbPath, backup, true); } catch { }
             Db = new LocalDatabase();
             Save();
+        }
+    }
+
+    private void MigrateLegacyProfessionalLinks()
+    {
+        foreach (var item in Db.ProfessionalLinks)
+        {
+            if (Db.TerritoryConfigs.ContainsKey(item.Key)) continue;
+            var parts = item.Key.Split('|');
+            if (parts.Length != 2) continue;
+            var sample = Db.Records.FirstOrDefault(r =>
+                r.TeamCode.Equals(parts[0], StringComparison.OrdinalIgnoreCase) &&
+                r.MicroCode.Equals(parts[1], StringComparison.OrdinalIgnoreCase));
+            Db.TerritoryConfigs[item.Key] = new TerritoryConfig
+            {
+                TeamCode = parts[0],
+                TeamName = sample?.TeamName ?? "",
+                MicroCode = parts[1],
+                ProfessionalName = item.Value,
+                RegisteredPeople = 0,
+                UpdatedAt = DateTime.Now
+            };
         }
     }
 
@@ -91,20 +117,43 @@ public sealed class DataStore
 
     public bool Upsert(VisitRecord record)
     {
-        var key = LinkKey(record.TeamCode, record.MicroCode);
-        if (Db.ProfessionalLinks.TryGetValue(key, out var professional)) record.Professional = professional;
+        ApplyTerritoryToRecord(record);
         var idx = Db.Records.FindIndex(r => r.IdentityKey.Equals(record.IdentityKey, StringComparison.OrdinalIgnoreCase));
         if (idx >= 0) { Db.Records[idx] = record; Save(); return false; }
         Db.Records.Add(record); Save(); return true;
     }
 
-    public void LinkProfessional(string teamCode, string microCode, string professional)
+    public TerritoryConfig? GetTerritoryConfig(string teamCode, string microCode)
+    {
+        Db.TerritoryConfigs.TryGetValue(LinkKey(teamCode, microCode), out var cfg);
+        return cfg;
+    }
+
+    public void SaveTerritoryConfig(string teamCode, string teamName, string microCode, string professionalName, int registeredPeople)
     {
         var key = LinkKey(teamCode, microCode);
-        if (string.IsNullOrWhiteSpace(professional)) Db.ProfessionalLinks.Remove(key);
-        else Db.ProfessionalLinks[key] = professional.Trim();
-        ApplyProfessionalLinks();
+        Db.TerritoryConfigs[key] = new TerritoryConfig
+        {
+            TeamCode = teamCode.Trim(),
+            TeamName = teamName.Trim(),
+            MicroCode = microCode.Trim().PadLeft(2, '0'),
+            ProfessionalName = professionalName.Trim(),
+            RegisteredPeople = Math.Max(0, registeredPeople),
+            UpdatedAt = DateTime.Now
+        };
+
+        if (string.IsNullOrWhiteSpace(professionalName)) Db.ProfessionalLinks.Remove(key);
+        else Db.ProfessionalLinks[key] = professionalName.Trim();
+        ApplyTerritoryConfiguration();
         Save();
+    }
+
+    public void LinkProfessional(string teamCode, string microCode, string professional)
+    {
+        var sample = Db.Records.FirstOrDefault(r => r.TeamCode == teamCode && r.MicroCode == microCode);
+        var old = GetTerritoryConfig(teamCode, microCode);
+        SaveTerritoryConfig(teamCode, sample?.TeamName ?? old?.TeamName ?? "", microCode,
+            professional, old?.RegisteredPeople ?? 0);
     }
 
     public void Delete(IEnumerable<VisitRecord> records)
@@ -129,13 +178,19 @@ public sealed class DataStore
         Load();
     }
 
-    public static string LinkKey(string teamCode, string microCode) => $"{teamCode.Trim()}|{microCode.Trim()}";
+    public static string LinkKey(string teamCode, string microCode) => $"{teamCode.Trim()}|{microCode.Trim().PadLeft(2, '0')}";
 
-    private void ApplyProfessionalLinks()
+    private void ApplyTerritoryConfiguration()
     {
-        foreach (var r in Db.Records)
-        {
-            r.Professional = Db.ProfessionalLinks.TryGetValue(LinkKey(r.TeamCode, r.MicroCode), out var p) ? p : r.Professional;
-        }
+        foreach (var r in Db.Records) ApplyTerritoryToRecord(r);
+    }
+
+    private void ApplyTerritoryToRecord(VisitRecord r)
+    {
+        var key = LinkKey(r.TeamCode, r.MicroCode);
+        if (Db.TerritoryConfigs.TryGetValue(key, out var cfg) && !string.IsNullOrWhiteSpace(cfg.ProfessionalName))
+            r.Professional = cfg.ProfessionalName;
+        else if (Db.ProfessionalLinks.TryGetValue(key, out var legacy))
+            r.Professional = legacy;
     }
 }
